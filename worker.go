@@ -195,7 +195,7 @@ func (w *Worker) WorkOne(ctx context.Context) (didWork bool) {
 	if err != nil {
 		span.RecordError(fmt.Errorf("woker failed to lock a job: %w", err))
 		w.mWorked.Add(ctx, 1, metric.WithAttributes(attrJobType.String(""), attrSuccess.Bool(false)))
-		w.logger.Error("Worker failed to lock a job", adapter.Err(err))
+		w.logger.Error(fmt.Sprintf("Worker failed to lock a job: %v", err), adapter.Err(err))
 
 		for _, hook := range w.hooksJobLocked {
 			hook(ctx, nil, err)
@@ -255,7 +255,7 @@ func (w *Worker) WorkOne(ctx context.Context) (didWork bool) {
 
 		if jErr := j.Error(ctx, err); jErr != nil {
 			span.RecordError(fmt.Errorf("failed to mark job as error: %w", err))
-			ll.Error("Got an error on setting an error to an errored job", adapter.Err(jErr), adapter.F("job-error", err))
+			ll.Error(fmt.Sprintf("Got an error on setting an error to an errored job: %v (original job error: %v)", jErr, err), adapter.Err(jErr), adapter.F("job-error", err))
 		}
 
 		return
@@ -268,7 +268,7 @@ func (w *Worker) WorkOne(ctx context.Context) (didWork bool) {
 	err = j.Delete(ctx)
 	if err != nil {
 		span.RecordError(fmt.Errorf("failed to delete finished job: %w", err))
-		ll.Error("Got an error on deleting a job", adapter.Err(err))
+		ll.Error(fmt.Sprintf("Got an error on deleting a job: %v", err), adapter.Err(err))
 	}
 
 	w.mWorked.Add(ctx, 1, metric.WithAttributes(attrJobType.String(j.Type), attrSuccess.Bool(err == nil)))
@@ -285,7 +285,7 @@ func (w *Worker) handleUnknownJobType(ctx context.Context, j *Job, span trace.Sp
 	errUnknownType := fmt.Errorf("worker[id=%s] unknown job type: %q", w.id, j.Type)
 	if err := j.Error(ctx, errUnknownType); err != nil {
 		span.RecordError(fmt.Errorf("failed to mark job as error: %w", err))
-		ll.Error("Got an error on setting an error to unknown job", adapter.Err(err))
+		ll.Error(fmt.Sprintf("Got an error on setting an error to unknown job: %v", err), adapter.Err(err))
 	}
 
 	for _, hook := range w.hooksUnknownJobType {
@@ -316,7 +316,7 @@ func (w *Worker) initMetrics() (err error) {
 func (w *Worker) markJobDone(ctx context.Context, j *Job, processingStartedAt time.Time, span trace.Span, ll adapter.Logger) {
 	if err := j.Done(ctx); err != nil {
 		span.RecordError(fmt.Errorf("failed to mark job as done: %w", err))
-		ll.Error("Failed to mark job as done", adapter.Err(err))
+		ll.Error(fmt.Sprintf("Failed to mark job as done: %v", err), adapter.Err(err))
 
 		// let user handle critical job failure
 		for _, hook := range w.hooksJobUndone {
@@ -358,7 +358,7 @@ func (w *Worker) recoverPanic(ctx context.Context, j *Job, logger adapter.Logger
 	// record an error on the job with panic message and stacktrace
 	if err := j.Error(ctx, errPanic); err != nil {
 		span.RecordError(fmt.Errorf("failed to mark panicked job as error: %w", err))
-		logger.Error("Got an error on setting an error to a panicked job", adapter.Err(err))
+		logger.Error(fmt.Sprintf("Got an error on setting an error to a panicked job: %v", err), adapter.Err(err))
 	}
 }
 
@@ -382,7 +382,7 @@ func (w *Worker) recoverPanicRecovery(ctx context.Context, j *Job, logger adapte
 	// record an error on the job with panic message and stacktrace
 	if err := j.Error(ctx, errPanic); err != nil {
 		span.RecordError(fmt.Errorf("failed to mark panicked job (hook job done) as error: %w", err))
-		logger.Error("Got an error on setting an error to a panicked job (hook job done)", adapter.Err(err))
+		logger.Error(fmt.Sprintf("Got an error on setting an error to a panicked job (hook job done): %v", err), adapter.Err(err))
 	}
 }
 
@@ -396,7 +396,7 @@ func buildStackTrace(r any, bufSize int, logger adapter.Logger) string {
 	_, printEllipsisErr := fmt.Fprintln(buf, "[...]")
 
 	if err := errors.Join(printRErr, printStackErr, printEllipsisErr); err != nil {
-		logger.Error("Could not build panicked job stacktrace", adapter.Err(err), adapter.F("runtime-stack", string(stackBuf[:n])))
+		logger.Error(fmt.Sprintf("Could not build panicked job stacktrace: %v", err), adapter.Err(err), adapter.F("runtime-stack", string(stackBuf[:n])))
 	}
 
 	return buf.String()

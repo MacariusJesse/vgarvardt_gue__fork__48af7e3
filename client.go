@@ -97,7 +97,7 @@ func (c *Client) EnqueueBatch(ctx context.Context, jobs []*Job) error {
 	for i, j := range jobs {
 		if err := c.execEnqueue(ctx, j, tx); err != nil {
 			if rbErr := tx.Rollback(ctx); rbErr != nil {
-				c.logger.Error("Could not properly rollback transaction", adapter.Err(err))
+				c.logger.Error(fmt.Sprintf("Could not properly rollback transaction: %v", rbErr), adapter.Err(rbErr))
 			}
 			return fmt.Errorf("could not enqueue job from the batch [idx %d]: %w", i, err)
 		}
